@@ -1,32 +1,38 @@
 import { openDB, IDBPDatabase } from 'idb';
-import type { Collection, VideoProgress, FolderHandleData, FileSystemDirectoryHandle } from '../types';
+import type { Collection, VideoProgress, FolderHandleData, FileSystemDirectoryHandle, UserPreferences } from '../types';
 
 const DB_NAME = 'localplay-db';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 
 type LocalPlayDB = {
   folders: FolderHandleData;
   progress: VideoProgress;
   collections: Collection;
+  preferences: UserPreferences;
 };
 
 // Initialize database
 export const initDB = async (): Promise<IDBPDatabase<LocalPlayDB>> => {
   return openDB<LocalPlayDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
+    upgrade(db, _oldVersion, _newVersion) {
       // Store for folder handles
       if (!db.objectStoreNames.contains('folders')) {
         db.createObjectStore('folders', { keyPath: 'id' });
       }
-      
+
       // Store for video progress
       if (!db.objectStoreNames.contains('progress')) {
         db.createObjectStore('progress', { keyPath: 'id' });
       }
-      
+
       // Store for collections (courses/series)
       if (!db.objectStoreNames.contains('collections')) {
         db.createObjectStore('collections', { keyPath: 'id' });
+      }
+
+      // Store for user preferences (added in version 2)
+      if (!db.objectStoreNames.contains('preferences')) {
+        db.createObjectStore('preferences', { keyPath: 'id' });
       }
     },
   });
@@ -83,6 +89,33 @@ export const getAllProgress = async (): Promise<VideoProgress[]> => {
   return db.getAll('progress');
 };
 
+export const deleteProgress = async (videoId: string): Promise<void> => {
+  const db = await initDB();
+  await db.delete('progress', videoId);
+};
+
+export const markVideoComplete = async (videoId: string, duration: number): Promise<void> => {
+  const db = await initDB();
+  await db.put('progress', {
+    id: videoId,
+    currentTime: duration,
+    duration,
+    percentage: 100,
+    lastWatched: Date.now(),
+  });
+};
+
+export const clearLastWatched = async (videoId: string): Promise<void> => {
+  const db = await initDB();
+  const progress = await db.get('progress', videoId);
+  if (progress) {
+    await db.put('progress', {
+      ...progress,
+      lastWatched: 0,
+    });
+  }
+};
+
 // Collection Operations
 export const saveCollection = async (collection: Collection): Promise<void> => {
   const db = await initDB();
@@ -112,3 +145,36 @@ export const saveCourse = saveCollection;
 export const getCourse = getCollection;
 export const getAllCourses = getAllCollections;
 export const deleteCourse = deleteCollection;
+
+// User Preferences Operations
+export const getDefaultPreferences = (): UserPreferences => ({
+  id: 'user-preferences',
+  autoPlay: true,
+  replaceUnderscoreWithColon: true,
+  sidebarWidth: 320,
+  sidebarVisible: true,
+  defaultPlaybackRate: 1,
+  defaultVolume: 1,
+  theme: 'dark',
+  subtitlesEnabled: true,
+  lastUpdated: Date.now(),
+});
+
+export const savePreferences = async (preferences: Partial<UserPreferences>): Promise<void> => {
+  const db = await initDB();
+  const existing = await db.get('preferences', 'user-preferences');
+  const updated: UserPreferences = {
+    ...getDefaultPreferences(),
+    ...existing,
+    ...preferences,
+    id: 'user-preferences',
+    lastUpdated: Date.now(),
+  };
+  await db.put('preferences', updated);
+};
+
+export const getPreferences = async (): Promise<UserPreferences> => {
+  const db = await initDB();
+  const preferences = await db.get('preferences', 'user-preferences');
+  return preferences || getDefaultPreferences();
+};

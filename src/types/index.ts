@@ -29,6 +29,7 @@ export interface Video {
   duration: number;
   sortOrder: number;
   numberPrefix: string;  // Original number prefix (e.g., "01", "02")
+  subtitleFile?: FileSystemFileHandle;  // Associated .srt file
 }
 
 // Lesson type (subfolder containing videos)
@@ -38,6 +39,7 @@ export interface Lesson {
   originalName: string;
   videos: Video[];
   totalVideos: number;
+  totalDuration: number;  // Total duration in seconds
   sortOrder: number;
   dirHandle: FileSystemDirectoryHandle;
   numberPrefix: string;  // Original number prefix (e.g., "01", "02")
@@ -52,8 +54,31 @@ export interface Course {
   lessons: Lesson[];
   totalLessons: number;
   totalVideos: number;
+  totalDuration: number;  // Total duration in seconds
   dirHandle: FileSystemDirectoryHandle;
   lastAccessed?: number;
+}
+
+// User preferences
+export interface UserPreferences {
+  id: string;
+  autoPlay: boolean;
+  replaceUnderscoreWithColon: boolean;
+  sidebarWidth: number;
+  sidebarVisible: boolean;
+  defaultPlaybackRate: number;
+  defaultVolume: number;
+  theme: 'dark' | 'light';
+  subtitlesEnabled: boolean;
+  lastUpdated: number;
+}
+
+// Subtitle cue for SRT parsing
+export interface SubtitleCue {
+  id: number;
+  startTime: number;  // in seconds
+  endTime: number;    // in seconds
+  text: string;
 }
 
 // Alias for backward compatibility
@@ -89,6 +114,11 @@ export interface VideoSidebarProps {
   lessonName: string;
   isOpen: boolean;
   onToggle: () => void;
+  width: number;
+  onWidthChange: (width: number) => void;
+  replaceUnderscore: boolean;
+  onMarkVideoComplete?: (video: Video) => void;
+  onResetVideoProgress?: (video: Video) => void;
 }
 
 export interface LessonCardProps {
@@ -123,11 +153,23 @@ export interface UseProgressReturn {
   isCompleted: (id: string) => boolean;
   loadProgress: (id: string) => Promise<VideoProgress | null>;
   loadAllProgress: () => Promise<void>;
+  resetLessonProgress: (lesson: Lesson) => Promise<void>;
+  markLessonComplete: (lesson: Lesson) => Promise<void>;
+  resetCourseProgress: (course: Course) => Promise<void>;
+  markCourseComplete: (course: Course) => Promise<void>;
+  removeFromRecents: (lesson: Lesson) => Promise<void>;
 }
 
 export interface UseControlsReturn {
   showControls: boolean;
   handleActivity: () => void;
+}
+
+export interface UsePreferencesReturn {
+  preferences: UserPreferences | null;
+  isLoading: boolean;
+  updatePreference: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => Promise<void>;
+  updatePreferences: (updates: Partial<UserPreferences>) => Promise<void>;
 }
 
 // Utility types

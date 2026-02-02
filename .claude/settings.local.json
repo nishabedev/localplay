@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm run type-check:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(cat:*)",
+      "Bash(cd /Users/nishabe/Documents/root/Pet\\\\ Projects/localplay && npx tsc:*)"
     ]
   }
 }

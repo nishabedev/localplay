@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { saveProgress, getProgress, getAllProgress } from '../utils/storage';
-import type { VideoProgress, UseProgressReturn, Lesson, Course } from '../types';
+import { saveProgress, getProgress, getAllProgress, deleteProgress, markVideoComplete, clearLastWatched } from '../utils/storage';
+import type { VideoProgress, Lesson, Course, UseProgressReturn } from '../types';
 
 export const useProgress = (videoId?: string): UseProgressReturn => {
   const [currentProgress, setCurrentProgress] = useState<VideoProgress | null>(null);
@@ -29,7 +29,7 @@ export const useProgress = (videoId?: string): UseProgressReturn => {
     }
   };
 
-  const loadAllProgress = async (): Promise<void> => {
+  const loadAllProgress = useCallback(async (): Promise<void> => {
     try {
       const progressList = await getAllProgress();
       const progressMap = progressList.reduce((acc, item) => {
@@ -40,7 +40,7 @@ export const useProgress = (videoId?: string): UseProgressReturn => {
     } catch (err) {
       console.error('Error loading all progress:', err);
     }
-  };
+  }, []);
 
   // Update progress (with debouncing)
   const updateProgress = useCallback(async (
@@ -75,23 +75,24 @@ export const useProgress = (videoId?: string): UseProgressReturn => {
     return allProgress[id]?.percentage || 0;
   }, [allProgress]);
 
-  // Check if video is completed (>90% watched)
+  // Check if video is completed (>95% watched OR less than 5 seconds remaining)
   const isCompleted = useCallback((id: string): boolean => {
-    const percentage = getProgressPercentage(id);
-    return percentage > 90;
-  }, [getProgressPercentage]);
+    const progress = allProgress[id];
+    if (!progress) return false;
+    const remainingTime = progress.duration - progress.currentTime;
+    return progress.percentage > 95 || remainingTime < 5;
+  }, [allProgress]);
 
   // Calculate progress for a lesson (aggregate of videos)
   const getLessonProgress = useCallback((lesson: Lesson): number => {
     if (!lesson.videos || lesson.videos.length === 0) return 0;
 
     const completedVideos = lesson.videos.filter(video => {
-      const progress = allProgress[video.id];
-      return progress && progress.percentage > 90;
+      return isCompleted(video.id);
     }).length;
 
     return Math.round((completedVideos / lesson.videos.length) * 100);
-  }, [allProgress]);
+  }, [isCompleted]);
 
   // Calculate progress for a course (aggregate of all videos across lessons)
   const getCourseProgress = useCallback((course: Course): number => {
@@ -116,6 +117,75 @@ export const useProgress = (videoId?: string): UseProgressReturn => {
     return Math.round((completedVideos / totalVideos) * 100);
   }, [allProgress, isCompleted]);
 
+  // Reset progress for a lesson (all videos)
+  const resetLessonProgress = useCallback(async (lesson: Lesson): Promise<void> => {
+    try {
+      for (const video of lesson.videos) {
+        await deleteProgress(video.id);
+      }
+      // Refresh all progress
+      await loadAllProgress();
+    } catch (err) {
+      console.error('Error resetting lesson progress:', err);
+    }
+  }, [loadAllProgress]);
+
+  // Mark lesson as complete (all videos)
+  const markLessonComplete = useCallback(async (lesson: Lesson): Promise<void> => {
+    try {
+      for (const video of lesson.videos) {
+        await markVideoComplete(video.id, video.duration);
+      }
+      // Refresh all progress
+      await loadAllProgress();
+    } catch (err) {
+      console.error('Error marking lesson complete:', err);
+    }
+  }, [loadAllProgress]);
+
+  // Reset progress for a course (all lessons and videos)
+  const resetCourseProgress = useCallback(async (course: Course): Promise<void> => {
+    try {
+      for (const lesson of course.lessons) {
+        for (const video of lesson.videos) {
+          await deleteProgress(video.id);
+        }
+      }
+      // Refresh all progress
+      await loadAllProgress();
+    } catch (err) {
+      console.error('Error resetting course progress:', err);
+    }
+  }, [loadAllProgress]);
+
+  // Mark course as complete (all lessons and videos)
+  const markCourseComplete = useCallback(async (course: Course): Promise<void> => {
+    try {
+      for (const lesson of course.lessons) {
+        for (const video of lesson.videos) {
+          await markVideoComplete(video.id, video.duration);
+        }
+      }
+      // Refresh all progress
+      await loadAllProgress();
+    } catch (err) {
+      console.error('Error marking course complete:', err);
+    }
+  }, [loadAllProgress]);
+
+  // Remove lesson from recents (clears lastWatched but preserves progress)
+  const removeFromRecents = useCallback(async (lesson: Lesson): Promise<void> => {
+    try {
+      for (const video of lesson.videos) {
+        await clearLastWatched(video.id);
+      }
+      // Refresh all progress
+      await loadAllProgress();
+    } catch (err) {
+      console.error('Error removing from recents:', err);
+    }
+  }, [loadAllProgress]);
+
   return {
     currentProgress,
     allProgress,
@@ -126,5 +196,10 @@ export const useProgress = (videoId?: string): UseProgressReturn => {
     isCompleted,
     loadProgress,
     loadAllProgress,
+    resetLessonProgress,
+    markLessonComplete,
+    resetCourseProgress,
+    markCourseComplete,
+    removeFromRecents,
   };
 };

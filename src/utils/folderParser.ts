@@ -42,8 +42,43 @@ const generateVideoId = (courseName: string, lessonName: string, fileName: strin
   return `video-${courseName}-${lessonName}-${fileName}`;
 };
 
-// Generate thumbnail from video file
-const generateThumbnail = async (fileHandle: FileSystemFileHandle): Promise<string> => {
+// Get video duration from file
+const getVideoDuration = async (fileHandle: FileSystemFileHandle): Promise<number> => {
+  return new Promise(async (resolve) => {
+    try {
+      const file = await fileHandle.getFile();
+      const videoUrl = URL.createObjectURL(file);
+
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(videoUrl);
+        resolve(video.duration || 0);
+      };
+
+      video.onerror = () => {
+        URL.revokeObjectURL(videoUrl);
+        resolve(0);
+      };
+
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        URL.revokeObjectURL(videoUrl);
+        resolve(0);
+      }, 5000);
+
+      video.src = videoUrl;
+      video.load();
+    } catch (error) {
+      console.error('Error getting video duration:', error);
+      resolve(0);
+    }
+  });
+};
+
+// Generate thumbnail from video file (at 10s if video > 10s, else 10% or 2s)
+const generateThumbnail = async (fileHandle: FileSystemFileHandle, duration: number): Promise<string> => {
   return new Promise(async (resolve) => {
     try {
       const file = await fileHandle.getFile();
@@ -55,8 +90,9 @@ const generateThumbnail = async (fileHandle: FileSystemFileHandle): Promise<stri
       video.preload = 'metadata';
 
       video.onloadedmetadata = () => {
-        // Seek to 10% of the video or 2 seconds, whichever is smaller
-        video.currentTime = Math.min(video.duration * 0.1, 2);
+        // Seek to 10s if video > 10s, otherwise use 10% or 2s whichever is smaller
+        const seekTime = duration > 10 ? 10 : Math.min(duration * 0.1, 2);
+        video.currentTime = seekTime;
       };
 
       video.onseeked = () => {
@@ -100,10 +136,40 @@ const generateThumbnail = async (fileHandle: FileSystemFileHandle): Promise<stri
   });
 };
 
+// Find subtitle file for a video in the subtitles folder
+const findSubtitleForVideo = async (
+  parentDirHandle: FileSystemDirectoryHandle,
+  lessonName: string,
+  videoFilename: string
+): Promise<FileSystemFileHandle | undefined> => {
+  try {
+    // Look for a folder named {lessonName}_subtitles
+    const subtitlesFolderName = `${lessonName}_subtitles`;
+    const subtitlesDir = await parentDirHandle.getDirectoryHandle(subtitlesFolderName);
+
+    // Get video name without extension
+    const videoNameWithoutExt = videoFilename.replace(/\.[^/.]+$/, '');
+
+    // Look for matching .srt file
+    for await (const entry of subtitlesDir.values()) {
+      if (entry.kind === 'file' && entry.name.toLowerCase().endsWith('.srt')) {
+        const srtNameWithoutExt = entry.name.replace(/\.srt$/i, '');
+        if (srtNameWithoutExt === videoNameWithoutExt) {
+          return await subtitlesDir.getFileHandle(entry.name);
+        }
+      }
+    }
+  } catch {
+    // Subtitle folder not found or other error - subtitles not available
+  }
+  return undefined;
+};
+
 // Parse a lesson folder (subfolder containing videos)
 const parseLessonFolder = async (
   dirHandle: FileSystemDirectoryHandle,
-  courseName: string
+  courseName: string,
+  parentDirHandle: FileSystemDirectoryHandle
 ): Promise<Lesson> => {
   const videos: Video[] = [];
 
@@ -112,15 +178,26 @@ const parseLessonFolder = async (
       const fileHandle = await dirHandle.getFileHandle(entry.name);
       const file = await fileHandle.getFile();
 
+      // Get video duration
+      const duration = await getVideoDuration(fileHandle);
+
+      // Find subtitle file for this video
+      const subtitleFile = await findSubtitleForVideo(
+        parentDirHandle,
+        dirHandle.name,
+        entry.name
+      );
+
       videos.push({
         id: generateVideoId(courseName, dirHandle.name, entry.name),
         name: cleanName(entry.name.replace(/\.[^/.]+$/, '')), // Remove extension
         filename: entry.name,
         fileHandle,
         size: file.size,
-        duration: 0, // Will be set when video loads
+        duration,
         sortOrder: extractNumber(entry.name),
         numberPrefix: extractNumberPrefix(entry.name),
+        subtitleFile,
       });
     }
   }
@@ -128,10 +205,13 @@ const parseLessonFolder = async (
   // Sort videos by number prefix
   videos.sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // Generate thumbnail from first video
+  // Calculate total duration
+  const totalDuration = videos.reduce((sum, video) => sum + video.duration, 0);
+
+  // Generate thumbnail from first video (at 10s if duration > 10s)
   let thumbnail = '';
   if (videos.length > 0) {
-    thumbnail = await generateThumbnail(videos[0].fileHandle);
+    thumbnail = await generateThumbnail(videos[0].fileHandle, videos[0].duration);
   }
 
   return {
@@ -140,6 +220,7 @@ const parseLessonFolder = async (
     originalName: dirHandle.name,
     videos,
     totalVideos: videos.length,
+    totalDuration,
     sortOrder: extractNumber(dirHandle.name),
     dirHandle,
     numberPrefix: extractNumberPrefix(dirHandle.name),
@@ -152,18 +233,20 @@ const parseLessonFolder = async (
 export const parseFolderStructure = async (dirHandle: FileSystemDirectoryHandle): Promise<Course> => {
   const lessons: Lesson[] = [];
   let totalVideos = 0;
+  let totalDuration = 0;
 
   // Iterate through directory entries
   for await (const entry of dirHandle.values()) {
-    // Only process subdirectories as lessons (ignore loose video files at root)
-    if (entry.kind === 'directory') {
+    // Only process subdirectories as lessons (ignore loose video files at root and _subtitles folders)
+    if (entry.kind === 'directory' && !entry.name.endsWith('_subtitles')) {
       const lessonDirHandle = await dirHandle.getDirectoryHandle(entry.name);
-      const lesson = await parseLessonFolder(lessonDirHandle, dirHandle.name);
+      const lesson = await parseLessonFolder(lessonDirHandle, dirHandle.name, dirHandle);
 
       // Only add lessons that have videos
       if (lesson.videos.length > 0) {
         lessons.push(lesson);
         totalVideos += lesson.totalVideos;
+        totalDuration += lesson.totalDuration;
       }
     }
   }
@@ -178,6 +261,7 @@ export const parseFolderStructure = async (dirHandle: FileSystemDirectoryHandle)
     lessons,
     totalLessons: lessons.length,
     totalVideos,
+    totalDuration,
     dirHandle,
   };
 };
@@ -214,4 +298,27 @@ export const formatDuration = (seconds: number): string => {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
   return `${m}:${s.toString().padStart(2, '0')}`;
+};
+
+// Format total duration as "1h 23m" or "45m" or "5m 30s"
+export const formatTotalDuration = (seconds: number): string => {
+  if (!seconds || seconds === 0) return '0m';
+
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+
+  if (h > 0) {
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  if (m > 0) {
+    return s > 0 && m < 10 ? `${m}m ${s}s` : `${m}m`;
+  }
+  return `${s}s`;
+};
+
+// Format display name (replace underscores with spaces if enabled)
+export const formatDisplayName = (name: string, replaceUnderscore: boolean): string => {
+  if (!replaceUnderscore) return name;
+  return name.replace(/_/g, ' ');
 };
