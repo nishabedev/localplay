@@ -42,6 +42,9 @@ const Help: React.FC<HelpProps> = ({ isOpen, onClose }) => {
             <p className="text-sm mb-2">
               LocalPlay lets you watch video courses from your local folders. Click <strong>"Add Video Folder"</strong> to select a course folder from your computer.
             </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Your browser will ask for read-only access to the selected folder. No files are modified or uploaded - everything stays on your device.
+            </p>
           </section>
 
           {/* Folder Structure */}
