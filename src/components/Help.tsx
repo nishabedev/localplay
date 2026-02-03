@@ -94,13 +94,14 @@ const Help: React.FC<HelpProps> = ({ isOpen, onClose }) => {
               LocalPlay is a Progressive Web App (PWA). Install it for a native app experience that works fully offline:
             </p>
             <ul className="text-sm space-y-2 ml-4 list-disc">
-              <li><strong>Chrome/Edge:</strong> Click the install icon in the address bar, or Menu → "Install LocalPlay"</li>
+              <li><strong>Chrome/Edge (Desktop):</strong> Click the install icon in the address bar, or Menu → "Install LocalPlay"</li>
               <li><strong>Safari (Mac):</strong> File → "Add to Dock"</li>
-              <li><strong>iOS:</strong> Tap Share → "Add to Home Screen"</li>
-              <li><strong>Android:</strong> Tap Menu → "Add to Home Screen"</li>
             </ul>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               Once installed, LocalPlay works completely offline - no internet required.
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Note: LocalPlay requires the File System Access API, which is currently only available on desktop browsers (Chrome, Edge, Opera). iOS and Android are not supported.
             </p>
           </section>
 
