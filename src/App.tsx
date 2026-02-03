@@ -36,7 +36,7 @@ function AppContent() {
 
 function App() {
   return (
-    <Router>
+    <Router basename="/projects/localplay">
       <AppContent />
     </Router>
   );
