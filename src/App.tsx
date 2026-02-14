@@ -4,6 +4,7 @@ import CourseGrid from './components/CourseGrid';
 import LessonGrid from './components/LessonGrid';
 import VideoPlayer from './components/VideoPlayer';
 import { usePreferences } from './hooks/usePreferences';
+import UpdatePrompt from './components/UpdatePrompt';
 
 function AppContent() {
   const { preferences } = usePreferences();
@@ -38,6 +39,7 @@ function App() {
   return (
     <Router basename="/projects/localplay">
       <AppContent />
+      <UpdatePrompt />
     </Router>
   );
 }
