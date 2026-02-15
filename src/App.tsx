@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import CourseGrid from './components/CourseGrid';
 import LessonGrid from './components/LessonGrid';
 import VideoPlayer from './components/VideoPlayer';
+import Search from './components/Search';
 import { usePreferences } from './hooks/usePreferences';
 import UpdatePrompt from './components/UpdatePrompt';
 
@@ -29,6 +30,7 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/" element={<CourseGrid />} />
+      <Route path="/search" element={<Search />} />
       <Route path="/course/:courseId" element={<LessonGrid />} />
       <Route path="/play/:courseId/:lessonId" element={<VideoPlayer />} />
     </Routes>

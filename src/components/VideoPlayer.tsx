@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getVideoURL, formatDuration, formatDisplayName } from '../utils/folderParser';
+import { parseSRT } from '../utils/subtitleParser';
 import { getCourse, getFolderHandle, markVideoComplete, deleteProgress } from '../utils/storage';
 import { useProgress } from '../hooks/useProgress';
 import { useControls } from '../hooks/useControls';
@@ -14,9 +15,11 @@ import type { Course, Lesson, Video, SubtitleCue } from '../types';
 
 const VideoPlayer: React.FC = () => {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const seekTimeRef = useRef<number | null>(null);
 
   const [course, setCourse] = useState<Course | null>(null);
   const [currentLesson, setCurrentLesson] = useState<Lesson | null>(null);
@@ -79,6 +82,22 @@ const VideoPlayer: React.FC = () => {
   useEffect(() => {
     if (!currentLesson || initialVideoSet || currentLesson.videos.length === 0) return;
 
+    // Check for videoId query param (from search navigation)
+    const videoIdParam = searchParams.get('videoId');
+    const seekParam = searchParams.get('t');
+
+    if (videoIdParam) {
+      const targetVideo = currentLesson.videos.find(v => v.id === videoIdParam);
+      if (targetVideo) {
+        if (seekParam) {
+          seekTimeRef.current = parseFloat(seekParam);
+        }
+        setCurrentVideo(targetVideo);
+        setInitialVideoSet(true);
+        return;
+      }
+    }
+
     // Find the most recently watched video in this lesson
     let mostRecentVideo = currentLesson.videos[0];
     let mostRecentTimestamp = 0;
@@ -93,7 +112,7 @@ const VideoPlayer: React.FC = () => {
 
     setCurrentVideo(mostRecentVideo);
     setInitialVideoSet(true);
-  }, [currentLesson, allProgress, initialVideoSet]);
+  }, [currentLesson, allProgress, initialVideoSet, searchParams]);
 
   // Load video when current video changes
   useEffect(() => {
@@ -222,10 +241,19 @@ const VideoPlayer: React.FC = () => {
       if (url) {
         setVideoURL(url);
 
-        // Load saved progress
-        const progress = await loadProgress(currentVideo.id);
-        if (progress && videoRef.current) {
-          videoRef.current.currentTime = progress.currentTime;
+        // If there's a seek time from search navigation, use that instead of saved progress
+        if (seekTimeRef.current !== null) {
+          const seekTo = seekTimeRef.current;
+          seekTimeRef.current = null;
+          if (videoRef.current) {
+            videoRef.current.currentTime = seekTo;
+          }
+        } else {
+          // Load saved progress
+          const progress = await loadProgress(currentVideo.id);
+          if (progress && videoRef.current) {
+            videoRef.current.currentTime = progress.currentTime;
+          }
         }
       }
     } catch (err) {
@@ -233,51 +261,6 @@ const VideoPlayer: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Parse SRT content into SubtitleCue array
-  const parseSRT = (content: string): SubtitleCue[] => {
-    const cues: SubtitleCue[] = [];
-
-    // Normalize line endings (handle Windows \r\n and old Mac \r)
-    const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const blocks = normalizedContent.trim().split(/\n\n+/);
-
-    for (const block of blocks) {
-      const lines = block.split('\n').map(line => line.trim());
-      if (lines.length < 3) continue;
-
-      const idMatch = lines[0].match(/^\d+$/);
-      if (!idMatch) continue;
-
-      const timeMatch = lines[1].match(
-        /(\d{2}):(\d{2}):(\d{2}),(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2}),(\d{3})/
-      );
-      if (!timeMatch) continue;
-
-      const startTime =
-        parseInt(timeMatch[1]) * 3600 +
-        parseInt(timeMatch[2]) * 60 +
-        parseInt(timeMatch[3]) +
-        parseInt(timeMatch[4]) / 1000;
-
-      const endTime =
-        parseInt(timeMatch[5]) * 3600 +
-        parseInt(timeMatch[6]) * 60 +
-        parseInt(timeMatch[7]) +
-        parseInt(timeMatch[8]) / 1000;
-
-      const text = lines.slice(2).join('\n').trim();
-
-      cues.push({
-        id: parseInt(idMatch[0]),
-        startTime,
-        endTime,
-        text,
-      });
-    }
-
-    return cues;
   };
 
   const loadSubtitles = async (): Promise<void> => {
@@ -566,10 +549,20 @@ const VideoPlayer: React.FC = () => {
               </p>
             </div>
 
+            {/* Search button */}
+            <button
+              onClick={() => navigate('/search')}
+              className="p-2 hover:bg-gray-700 rounded-lg transition-colors ml-2"
+              title="Search"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
             {/* About button */}
             <button
               onClick={() => setShowAbout(true)}
-              className="p-2 hover:bg-gray-700 rounded-lg transition-colors ml-2"
+              className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
               title="About"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>

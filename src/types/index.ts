@@ -30,6 +30,7 @@ export interface Video {
   sortOrder: number;
   numberPrefix: string;  // Original number prefix (e.g., "01", "02")
   subtitleFile?: FileSystemFileHandle;  // Associated .srt file
+  subtitleText?: string;  // Plain text from subtitles for search indexing
 }
 
 // Lesson type (subfolder containing videos)

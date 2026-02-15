@@ -1,4 +1,5 @@
 import type { Course, Lesson, Video, FileSystemDirectoryHandle, FileSystemFileHandle } from '../types';
+import { extractPlainText } from './subtitleParser';
 
 // Supported video formats
 const VIDEO_EXTENSIONS = [
@@ -188,6 +189,18 @@ const parseLessonFolder = async (
         entry.name
       );
 
+      // Extract subtitle plain text for search indexing
+      let subtitleText: string | undefined;
+      if (subtitleFile) {
+        try {
+          const srtFile = await subtitleFile.getFile();
+          const srtContent = await srtFile.text();
+          subtitleText = extractPlainText(srtContent);
+        } catch {
+          // Failed to read subtitle file
+        }
+      }
+
       videos.push({
         id: generateVideoId(courseName, dirHandle.name, entry.name),
         name: cleanName(entry.name.replace(/\.[^/.]+$/, '')), // Remove extension
@@ -198,6 +211,7 @@ const parseLessonFolder = async (
         sortOrder: extractNumber(entry.name),
         numberPrefix: extractNumberPrefix(entry.name),
         subtitleFile,
+        subtitleText,
       });
     }
   }

@@ -95,6 +95,15 @@ const CourseGrid: React.FC = () => {
           </div>
           <div className="flex items-center gap-1">
             <button
+              onClick={() => navigate('/search')}
+              className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+              title="Search"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+            <button
               onClick={() => setShowAbout(true)}
               className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
               title="About"
