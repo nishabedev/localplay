@@ -4,6 +4,27 @@
 
 LocalPlay is a Progressive Web App (PWA) built with React and TypeScript that lets you organize and watch your video collections offline. Perfect for university courses, tutorials, movies, or any video content stored locally on your computer.
 
+<details>
+<summary><strong>Screenshots</strong></summary>
+<br>
+<p align="center">
+  <img src="docs/screenshots/home.png" width="250" alt="Home - Video collections with progress tracking">
+  <img src="docs/screenshots/collection.png" width="300" alt="Collection - Lessons and recent videos">
+  <img src="docs/screenshots/search.png" width="250" alt="Search - Transcript search">
+</p>
+<p align="center">
+  <img src="docs/screenshots/player.png" width="600" alt="Player - Video player with lesson sidebar">
+</p>
+</details>
+
+## Demo
+
+### Quick Overview
+<a href="https://www.youtube.com/watch?v=af34rwY3BAI"><img src="https://img.youtube.com/vi/af34rwY3BAI/maxresdefault.jpg" width="25%" alt="Quick Demo"></a>
+
+### Full Walkthrough
+<a href="https://www.youtube.com/watch?v=UmaZ87xsWhc"><img src="https://img.youtube.com/vi/UmaZ87xsWhc/maxresdefault.jpg" width="25%" alt="Full Walkthrough"></a>
+
 ## ✨ Features
 
 - 📁 **Folder-based organization** - Select any folder, automatic structure parsing
